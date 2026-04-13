@@ -1,0 +1,481 @@
+# Feeder App Backend — MVP Walkthrough
+
+Everything is connected end-to-end. This document explains how each piece works, how to connect your Expo app, and how to troubleshoot common issues.
+
+---
+
+## Project Structure
+
+```
+src/
+├── index.ts              ← Entry point: loads .env, starts server on 0.0.0.0
+├── app.ts                ← Builds Fastify app: registers plugins, routes, /test endpoint
+├── db/
+│   └── schema.ts         ← Drizzle schema: users, drivers (AutoRider), rides
+├── plugins/
+│   ├── drizzle.ts        ← DB connection plugin (MySQL pool via DATABASE_URL)
+│   ├── jwt.ts            ← JWT auth plugin + type augmentation
+│   └── websocket.ts      ← WebSocket plugin + ConnectionManager (in-memory)
+├── routes/
+│   ├── auth.routes.ts    ← POST /auth/signup, POST /auth/login
+│   ├── ride.routes.ts    ← POST /rides/request, PATCH /rides/:id/accept, etc.
+│   ├── location.routes.ts← POST /location/update
+│   └── ws.routes.ts      ← WebSocket at /ws
+├── controllers/
+│   ├── auth.controller.ts
+│   ├── ride.controller.ts
+│   └── location.controller.ts
+└── services/
+    ├── auth.service.ts   ← bcrypt hashing, JWT generation, login logic
+    ├── ride.service.ts   ← Create ride, accept ride (notifies user via WS), status updates
+    └── location.service.ts← Driver location → DB + broadcast to user via WS
+```
+
+### How It All Connects
+
+```mermaid
+graph TD
+    A["index.ts"] -->|"loads .env, calls buildApp()"| B["app.ts"]
+    B -->|"registers"| C["plugins/drizzle.ts"]
+    B -->|"registers"| D["plugins/jwt.ts"]
+    B -->|"registers"| E["plugins/websocket.ts"]
+    B -->|"registers"| F["routes/auth.routes.ts"]
+    B -->|"registers"| G["routes/ride.routes.ts"]
+    B -->|"registers"| H["routes/location.routes.ts"]
+    B -->|"registers"| I["routes/ws.routes.ts"]
+    C -->|"fastify.db"| J["MySQL via Drizzle ORM"]
+    E -->|"fastify.conns"| K["ConnectionManager"]
+    K -->|"in-memory Map"| L["User/Driver WebSocket connections"]
+```
+
+---
+
+## API Endpoints Reference
+
+### 1. Health Check
+```
+GET /test
+```
+No auth required. Verifies DB connection.
+```json
+// Response
+{ "status": "ok", "db": "connected", "timestamp": "2026-04-13T11:42:39.612Z" }
+```
+
+---
+
+### 2. Auth
+
+#### Signup
+```
+POST /auth/signup
+Content-Type: application/json
+```
+
+**User signup:**
+```json
+{
+  "type": "user",
+  "name": "Kartik",
+  "phoneNumber": "9876543210",
+  "password": "mypass123",
+  "email": "kartik@example.com"
+}
+```
+
+**Driver signup:**
+```json
+{
+  "type": "driver",
+  "name": "Raju",
+  "phoneNumber": "9876543211",
+  "password": "mypass123",
+  "vehicleNumber": "KA01AB1234",
+  "licenseNumber": "LIC123456",
+  "licensePhotoUrl": "https://...",
+  "AadhaarCardPhotoUrl": "https://...",
+  "photoUrl": "https://..."
+}
+```
+
+#### Login
+```
+POST /auth/login
+Content-Type: application/json
+```
+```json
+{
+  "type": "user",
+  "identifier": "9876543210",
+  "password": "mypass123"
+}
+```
+```json
+// Response
+{
+  "message": "Login successful",
+  "token": "eyJhbGciOiJIUzI1NiI...",
+  "user": { "id": 1, "name": "Kartik", "role": "user" }
+}
+```
+
+> [!IMPORTANT]
+> Save the `token` — you need it as `Authorization: Bearer <token>` for all ride endpoints.
+
+---
+
+### 3. Rides (all require JWT)
+
+#### Request a Ride (User)
+```
+POST /rides/request
+Authorization: Bearer <user_token>
+```
+```json
+{
+  "pickupLat": 12.9716,
+  "pickupLng": 77.5946,
+  "dropLat": 12.2958,
+  "dropLng": 76.6394,
+  "price": 250,
+  "paymentMode": "CASH"
+}
+```
+```json
+// Response
+{ "message": "Ride requested successfully", "rideId": 1 }
+```
+> This also **broadcasts** `NEW_RIDE_REQUEST` to all connected drivers via WebSocket.
+
+#### Accept a Ride (Driver)
+```
+PATCH /rides/:id/accept
+Authorization: Bearer <driver_token>
+```
+```json
+// Response
+{ "message": "Ride accepted successfully", "otp": 2219 }
+```
+> This sends `RIDE_ACCEPTED` to the user via WebSocket with driver details + OTP.
+
+#### Update Ride Status
+```
+PATCH /rides/:id/status
+Authorization: Bearer <token>
+```
+```json
+{ "status": "STARTED" }   // or "COMPLETED" or "CANCELLED"
+```
+
+#### Get Ride Status
+```
+GET /rides/:id/status
+Authorization: Bearer <token>
+```
+
+---
+
+### 4. Location Update (REST)
+```
+POST /location/update
+```
+```json
+{
+  "id": 1,
+  "role": "driver",
+  "lat": 12.9750,
+  "lng": 77.5900
+}
+```
+- **Driver**: Saves to DB + broadcasts `DRIVER_LOCATION` to the user who has an active ride with this driver
+- **User**: Acknowledges receipt (pickup location is already stored when ride is created)
+
+---
+
+## WebSocket Integration
+
+### Connect
+```
+ws://<YOUR_IP>:3000/ws
+```
+
+### Message Protocol
+All messages are JSON strings. Send/receive via `JSON.stringify()` / `JSON.parse()`.
+
+#### Register (first thing after connecting)
+```json
+// Send
+{ "type": "REGISTER", "id": 1, "role": "user" }
+// or
+{ "type": "REGISTER", "id": 1, "role": "driver" }
+
+// Receive
+{ "type": "REGISTERED", "id": 1, "role": "user" }
+```
+
+#### Driver Location Update (via WebSocket)
+```json
+// Driver sends
+{ "type": "LOCATION_UPDATE", "role": "driver", "id": 1, "lat": 12.975, "lng": 77.590 }
+
+// User receives (if they have an active ride with this driver)
+{ "event": "DRIVER_LOCATION", "rideId": 1, "driverId": 1, "lat": 12.975, "lng": 77.590 }
+```
+
+#### Events the User Receives
+| Event | When | Payload |
+|-------|------|---------|
+| `RIDE_ACCEPTED` | Driver accepts their ride | `rideId, driverId, driverName, driverPhone, vehicleNumber, otp` |
+| `DRIVER_LOCATION` | Driver moves during ride | `rideId, driverId, lat, lng` |
+| `RIDE_COMPLETED` | Ride finished | `rideId` |
+| `RIDE_CANCELLED` | Ride cancelled | `rideId` |
+
+#### Events the Driver Receives
+| Event | When | Payload |
+|-------|------|---------|
+| `NEW_RIDE_REQUEST` | User requests a ride | `rideId, pickup {lat, lng}, drop {lat, lng}, price` |
+
+#### Keep-alive
+```json
+// Send
+{ "type": "PING" }
+// Receive
+{ "type": "PONG" }
+```
+
+---
+
+## Location Handling Strategy
+
+> [!TIP]
+> **User Location** = one-time. Sent when creating a ride request (`pickupLat/pickupLng`).
+> **Driver Location** = frequent. Sent every 3-5 seconds via WebSocket `LOCATION_UPDATE` while on a ride.
+
+You have **two options** for driver location updates:
+
+| Method | When to Use |
+|--------|-------------|
+| **WebSocket** (`LOCATION_UPDATE` message) | Preferred — real-time, lower overhead for frequent updates |
+| **REST** (`POST /location/update`) | Fallback — simpler to implement first, works if WebSocket disconnects |
+
+Both methods do the same thing: save to DB + broadcast to the ride's user.
+
+---
+
+## Connecting From Expo App
+
+### Step 1: Find Your Local IP
+
+Your server is running at: **`http://192.168.1.50:3000`** (shown in server startup logs).
+
+> [!CAUTION]
+> **Never use `localhost` or `127.0.0.1` from Expo on a real device!** Those refer to the phone itself, not your computer. Always use your machine's LAN IP (e.g., `192.168.x.x`).
+
+### Step 2: Set Up API Base URL
+
+```typescript
+// config/api.ts
+const API_BASE = __DEV__
+  ? 'http://192.168.1.50:3000'   // ← Your computer's IP
+  : 'https://your-production-url.com';
+
+const WS_BASE = __DEV__
+  ? 'ws://192.168.1.50:3000/ws'
+  : 'wss://your-production-url.com/ws';
+
+export { API_BASE, WS_BASE };
+```
+
+### Step 3: Fetch API Examples
+
+```typescript
+// Login
+const login = async (phone: string, password: string) => {
+  const res = await fetch(`${API_BASE}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      type: 'user',
+      identifier: phone,
+      password,
+    }),
+  });
+  const data = await res.json();
+  // Save data.token to AsyncStorage
+  return data;
+};
+
+// Request a ride (with JWT)
+const requestRide = async (token: string, pickup: {lat: number, lng: number}, drop: {lat: number, lng: number}) => {
+  const res = await fetch(`${API_BASE}/rides/request`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      pickupLat: pickup.lat,
+      pickupLng: pickup.lng,
+      dropLat: drop.lat,
+      dropLng: drop.lng,
+      price: 150,
+      paymentMode: 'CASH',
+    }),
+  });
+  return await res.json();
+};
+```
+
+### Step 4: WebSocket Connection from Expo
+
+```typescript
+// hooks/useWebSocket.ts
+import { useEffect, useRef } from 'react';
+import { WS_BASE } from '../config/api';
+
+export function useWebSocket(userId: number, role: 'user' | 'driver', onMessage: (data: any) => void) {
+  const ws = useRef<WebSocket | null>(null);
+
+  useEffect(() => {
+    // 1. Connect
+    ws.current = new WebSocket(WS_BASE);
+
+    ws.current.onopen = () => {
+      console.log('WebSocket connected');
+      // 2. Register
+      ws.current?.send(JSON.stringify({
+        type: 'REGISTER',
+        id: userId,
+        role,
+      }));
+    };
+
+    ws.current.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      console.log('WS received:', data);
+      onMessage(data);
+    };
+
+    ws.current.onerror = (error) => {
+      console.log('WS error:', error);
+    };
+
+    ws.current.onclose = () => {
+      console.log('WS closed — reconnecting in 3s...');
+      setTimeout(() => {
+        // Reconnect logic
+      }, 3000);
+    };
+
+    return () => ws.current?.close();
+  }, [userId, role]);
+
+  // Function to send driver location
+  const sendLocation = (lat: number, lng: number) => {
+    if (ws.current?.readyState === WebSocket.OPEN) {
+      ws.current.send(JSON.stringify({
+        type: 'LOCATION_UPDATE',
+        role: 'driver',
+        id: userId,
+        lat,
+        lng,
+      }));
+    }
+  };
+
+  return { sendLocation };
+}
+```
+
+**Usage in a component:**
+```typescript
+// In your RideScreen or DriverScreen
+const { sendLocation } = useWebSocket(user.id, 'user', (data) => {
+  switch (data.event) {
+    case 'RIDE_ACCEPTED':
+      Alert.alert('Ride Accepted!', `Driver: ${data.driverName}\nOTP: ${data.otp}`);
+      break;
+    case 'DRIVER_LOCATION':
+      // Update driver marker on map
+      setDriverPosition({ lat: data.lat, lng: data.lng });
+      break;
+    case 'RIDE_COMPLETED':
+      Alert.alert('Ride completed!');
+      break;
+  }
+});
+```
+
+---
+
+## Common Errors & Fixes
+
+### 1. Network Error in Expo
+```
+TypeError: Network request failed
+```
+**Cause**: Using `localhost` or `127.0.0.1` instead of your computer's LAN IP.
+
+**Fix**: 
+- Run `ipconfig` in PowerShell → find your `IPv4 Address` (e.g., `192.168.1.50`)
+- Use `http://192.168.1.50:3000` in your Expo app
+- Make sure phone and computer are on the **same WiFi network**
+
+### 2. DB Connection Failure
+```
+Error: connect ETIMEDOUT
+```
+**Cause**: Wrong `DATABASE_URL` or network is blocking the DB port.
+
+**Fix**:
+- Verify `.env` has the correct `DATABASE_URL`
+- Test connection: hit `GET /test` — if it returns `{ "db": "connected" }`, your DB is fine
+- For Railway: make sure the MySQL service is running and the proxy URL is correct
+
+### 3. CORS Issues
+```
+Access to fetch has been blocked by CORS policy
+```
+**Fix**: Already handled — `cors` is registered with `{ origin: true }` which allows all origins. If you still see this in a browser, make sure the server is actually running.
+
+### 4. WebSocket Connection Issues
+```
+WebSocket connection to 'ws://localhost:3000/ws' failed
+```
+**Fix**:
+- Same as network error: use your LAN IP, not `localhost`
+- Check that the server logs show `Server listening at http://0.0.0.0:3000`
+- Make sure `@fastify/websocket` is installed (it is — check `package.json`)
+
+### 5. "Body cannot be empty" on PATCH requests
+```
+FST_ERR_CTP_EMPTY_JSON_BODY
+```
+**Fix**: Always send a body (even `{}`) when the request has `Content-Type: application/json`.
+
+### 6. JWT Unauthorized
+```
+{ "error": "Unauthorized" }
+```
+**Fix**: 
+- Include `Authorization: Bearer <token>` header
+- Make sure the token hasn't expired
+- Re-login to get a fresh token
+
+---
+
+## Verified API Test Results
+
+All endpoints tested and working:
+
+| Endpoint | Method | Status |
+|----------|--------|--------|
+| `/test` | GET | ✅ `{ db: "connected" }` |
+| `/auth/signup` | POST | ✅ User + Driver created |
+| `/auth/login` | POST | ✅ JWT tokens returned |
+| `/rides/request` | POST | ✅ Ride created (rideId: 1) |
+| `/rides/1/accept` | PATCH | ✅ Ride accepted (otp: 2219) |
+| `/rides/1/status` | PATCH | ✅ Ride started |
+| `/rides/1/status` | GET | ✅ Full ride details returned |
+| `/location/update` | POST | ✅ Driver location saved |
+| `/ws` | WebSocket | ✅ REGISTER, LOCATION_UPDATE, PING working |
