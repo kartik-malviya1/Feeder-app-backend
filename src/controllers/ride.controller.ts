@@ -1,6 +1,8 @@
 import { FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { RideService } from '../services/ride.service.js';
+import { rides } from '../db/schema.js';
+import { eq } from 'drizzle-orm';
 
 export const requestRideSchema = z.object({
   pickupLat: z.number(),
@@ -17,6 +19,7 @@ export const rideIdSchema = z.object({
 
 export const updateStatusSchema = z.object({
   status: z.enum(['STARTED', 'COMPLETED', 'CANCELLED']),
+  otp: z.number().optional(),
 });
 
 export class RideController {
@@ -56,15 +59,34 @@ export class RideController {
 
   async updateRideStatus(request: FastifyRequest, reply: FastifyReply) {
     const { id: rideId } = rideIdSchema.parse(request.params);
-    const { status } = updateStatusSchema.parse(request.body);
+    const { status, otp } = updateStatusSchema.parse(request.body);
 
-    const result = await this.rideService.updateRideStatus(rideId, status);
-    return reply.send({ message: `Ride ${status.toLowerCase()} successfully`, ...result });
+    try {
+      const result = await this.rideService.updateRideStatus(rideId, status, otp);
+      return reply.send({ message: `Ride ${status.toLowerCase()} successfully`, ...result });
+    } catch (error: any) {
+      return reply.code(400).send({ error: error.message });
+    }
+  }
+
+  async getActiveRide(request: FastifyRequest, reply: FastifyReply) {
+    const user = request.user;
+    if (user.role !== 'driver') {
+      return reply.code(403).send({ error: 'Only drivers can check their active rides' });
+    }
+
+    const ride = await this.rideService.getActiveRideForDriver(user.id);
+    if (!ride) {
+      return reply.send({ message: 'No active ride found' });
+    }
+
+    return reply.send(ride);
   }
 
   async getRideStatus(request: FastifyRequest, reply: FastifyReply) {
     const { id: rideId } = rideIdSchema.parse(request.params);
-    const ride = await this.rideService.getRideStatus(rideId);
+    const db = request.server.db; // Reconfirming db access
+    const ride = await db.query.rides.findFirst({ where: eq(rides.id, rideId) });
 
     if (!ride) {
       return reply.code(404).send({ error: 'Ride not found' });

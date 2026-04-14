@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { rides, AutoRider } from '../db/schema.js';
-import { eq } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 
 export class RideService {
   constructor(private fastify: FastifyInstance) {}
@@ -84,8 +84,24 @@ export class RideService {
     return { success: true, otp: existingRide.otp };
   }
 
-  async updateRideStatus(rideId: number, status: 'STARTED' | 'COMPLETED' | 'CANCELLED') {
+  async updateRideStatus(rideId: number, status: 'STARTED' | 'COMPLETED' | 'CANCELLED', otp?: number) {
     const db = this.fastify.db;
+
+    // Fetch ride details
+    const ride = await db.query.rides.findFirst({ where: eq(rides.id, rideId) });
+    if (!ride) {
+      throw new Error('Ride not found');
+    }
+
+    // OTP Validation for starting a ride
+    if (status === 'STARTED') {
+      if (!otp) {
+        throw new Error('OTP is required to start ride');
+      }
+      if (ride.otp !== otp) {
+        throw new Error('Invalid OTP');
+      }
+    }
 
     await db.update(rides)
       .set({
@@ -97,30 +113,45 @@ export class RideService {
 
     // If ride ended, free the driver
     if (status === 'COMPLETED' || status === 'CANCELLED') {
-      const ride = await db.query.rides.findFirst({ where: eq(rides.id, rideId) });
-      if (ride?.autoRiderId) {
+      if (ride.autoRiderId) {
         await db.update(AutoRider)
           .set({ status: 'ONLINE' })
           .where(eq(AutoRider.id, ride.autoRiderId));
       }
+    }
 
-      // Notify user the ride ended
-      if (ride) {
-        const userSocket = this.fastify.conns.getUserSocket(ride.userId);
-        if (userSocket && userSocket.readyState === 1) {
-          userSocket.send(JSON.stringify({
-            event: status === 'COMPLETED' ? 'RIDE_COMPLETED' : 'RIDE_CANCELLED',
-            rideId,
-          }));
-        }
+    // ✅ Notify BOTH user and driver via WebSocket
+    const userSocket = this.fastify.conns.getUserSocket(ride.userId);
+    if (userSocket && userSocket.readyState === 1) {
+      userSocket.send(JSON.stringify({
+        event: `RIDE_${status}`,
+        rideId,
+      }));
+    }
+
+    if (ride.autoRiderId) {
+      const driverSocket = this.fastify.conns.getDriverSocket(ride.autoRiderId);
+      if (driverSocket && driverSocket.readyState === 1) {
+        driverSocket.send(JSON.stringify({
+          event: `RIDE_${status}`,
+          rideId,
+        }));
       }
     }
 
     return { success: true };
   }
 
-  async getRideStatus(rideId: number) {
+  async getActiveRideForDriver(driverId: number) {
     const db = this.fastify.db;
-    return await db.select().from(rides).where(eq(rides.id, rideId)).then(r => r[0]);
+    return await db.query.rides.findFirst({
+      where: and(
+        eq(rides.autoRiderId, driverId),
+        inArray(rides.status, ['ACCEPTED', 'STARTED'])
+      ),
+      with: {
+        user: true
+      }
+    });
   }
 }

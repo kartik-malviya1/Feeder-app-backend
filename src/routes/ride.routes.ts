@@ -26,4 +26,9 @@ export default async function rideRoutes(fastify: FastifyInstance) {
   fastify.get('/:id/status', async (request, reply) => {
     return controller.getRideStatus(request, reply);
   });
+
+  // GET /rides/active — Get active ride for driver
+  fastify.get('/active', async (request, reply) => {
+    return controller.getActiveRide(request, reply);
+  });
 }

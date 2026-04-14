@@ -51,6 +51,28 @@ export default async function wsRoutes(fastify: FastifyInstance) {
               }
 
               fastify.log.info(`Driver ${data.id} → ${data.lat}, ${data.lng}`);
+            } else if (data.role === 'user') {
+              // 1. Find active ride for this user
+              const activeRide = await fastify.db.query.rides.findFirst({
+                where: and(
+                  eq(rides.userId, data.id),
+                ),
+              });
+
+              // 2. Forward to driver if they have an active ride
+              if (activeRide && activeRide.autoRiderId && (activeRide.status === 'ACCEPTED' || activeRide.status === 'STARTED')) {
+                const driverSocket = fastify.conns.getDriverSocket(activeRide.autoRiderId);
+                if (driverSocket && driverSocket.readyState === 1) {
+                  driverSocket.send(JSON.stringify({
+                    event: 'USER_LOCATION',
+                    rideId: activeRide.id,
+                    userId: data.id,
+                    lat: data.lat,
+                    lng: data.lng,
+                  }));
+                }
+              }
+              fastify.log.info(`User ${data.id} → ${data.lat}, ${data.lng}`);
             }
             break;
 
