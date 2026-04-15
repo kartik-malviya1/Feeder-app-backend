@@ -31,4 +31,9 @@ export default async function rideRoutes(fastify: FastifyInstance) {
   fastify.get('/active', async (request, reply) => {
     return controller.getActiveRide(request, reply);
   });
+
+  // GET /rides/nearby — Get nearby open ride requests for driver
+  fastify.get('/nearby', async (request, reply) => {
+    return controller.getNearbyRequests(request, reply);
+  });
 }

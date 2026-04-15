@@ -57,6 +57,10 @@ export const rides = mysqlTable('rides', {
 
   dropLocationLat: float(),
   dropLocationLng: float(),
+
+   pickupAddress: varchar({ length: 255 }),
+  dropAddress: varchar({ length: 255 }),
+
   otp: int().notNull(),
   status: rideStatusEnum.notNull(),
 
@@ -74,6 +78,8 @@ export const rides = mysqlTable('rides', {
 
   distance: float(),   // in km
   duration: int(),     // in seconds
+
+  cfOrderId: varchar("cf_order_id", { length: 255 }),
 
   created_at: timestamp("created_at").defaultNow().notNull(),
 });
