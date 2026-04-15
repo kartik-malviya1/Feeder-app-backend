@@ -5,6 +5,8 @@ import { eq, and } from 'drizzle-orm';
 export default async function wsRoutes(fastify: FastifyInstance) {
   fastify.get('/ws', { websocket: true }, (connection, req) => {
     fastify.log.info('New WebSocket connection');
+    let registeredId: number | null = null;
+    let registeredRole: 'user' | 'driver' | null = null;
 
     connection.on('message', async (message: Buffer) => {
       try {
@@ -13,10 +15,17 @@ export default async function wsRoutes(fastify: FastifyInstance) {
         switch (data.type) {
           // ─── Client registers itself ───
           case 'REGISTER':
+            registeredId = data.id;
+            registeredRole = data.role;
             if (data.role === 'user') {
               fastify.conns.registerUser(data.id, connection);
             } else if (data.role === 'driver') {
               fastify.conns.registerDriver(data.id, connection);
+              // Mark driver as ONLINE in DB
+              await fastify.db.update(AutoRider)
+                .set({ status: 'ONLINE' })
+                .where(eq(AutoRider.id, data.id));
+              fastify.log.info(`Driver ${data.id} is now ONLINE`);
             }
             connection.send(JSON.stringify({ type: 'REGISTERED', id: data.id, role: data.role }));
             break;
@@ -51,6 +60,28 @@ export default async function wsRoutes(fastify: FastifyInstance) {
               }
 
               fastify.log.info(`Driver ${data.id} → ${data.lat}, ${data.lng}`);
+            } else if (data.role === 'user') {
+              // 1. Find active ride for this user
+              const activeRide = await fastify.db.query.rides.findFirst({
+                where: and(
+                  eq(rides.userId, data.id),
+                ),
+              });
+
+              // 2. Forward to driver if they have an active ride
+              if (activeRide && activeRide.autoRiderId && (activeRide.status === 'ACCEPTED' || activeRide.status === 'STARTED')) {
+                const driverSocket = fastify.conns.getDriverSocket(activeRide.autoRiderId);
+                if (driverSocket && driverSocket.readyState === 1) {
+                  driverSocket.send(JSON.stringify({
+                    event: 'USER_LOCATION',
+                    rideId: activeRide.id,
+                    userId: data.id,
+                    lat: data.lat,
+                    lng: data.lng,
+                  }));
+                }
+              }
+              fastify.log.info(`User ${data.id} → ${data.lat}, ${data.lng}`);
             }
             break;
 
@@ -64,8 +95,18 @@ export default async function wsRoutes(fastify: FastifyInstance) {
       }
     });
 
-    connection.on('close', () => {
-      fastify.log.info('WebSocket connection closed');
+    connection.on('close', async () => {
+      fastify.log.info(`WebSocket connection closed for ${registeredRole} ${registeredId}`);
+      if (registeredRole === 'driver' && registeredId) {
+        try {
+          await fastify.db.update(AutoRider)
+            .set({ status: 'OFFLINE' })
+            .where(eq(AutoRider.id, registeredId));
+          fastify.log.info(`Driver ${registeredId} is now OFFLINE`);
+        } catch (err) {
+          fastify.log.error(`Failed to set driver ${registeredId} OFFLINE:`, err);
+        }
+      }
     });
   });
 }

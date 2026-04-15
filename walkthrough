@@ -266,7 +266,7 @@ Both methods do the same thing: save to DB + broadcast to the ride's user.
 
 ### Step 1: Find Your Local IP
 
-Your server is running at: **`http://192.168.1.50:3000`** (shown in server startup logs).
+Your server is running at: **`http://192.168.1.20:3000`** (shown in server startup logs).
 
 > [!CAUTION]
 > **Never use `localhost` or `127.0.0.1` from Expo on a real device!** Those refer to the phone itself, not your computer. Always use your machine's LAN IP (e.g., `192.168.x.x`).
@@ -276,11 +276,11 @@ Your server is running at: **`http://192.168.1.50:3000`** (shown in server start
 ```typescript
 // config/api.ts
 const API_BASE = __DEV__
-  ? 'http://192.168.1.50:3000'   // ← Your computer's IP
+  ? 'http://192.168.1.20:3000'   // ← Your computer's IP
   : 'https://your-production-url.com';
 
 const WS_BASE = __DEV__
-  ? 'ws://192.168.1.50:3000/ws'
+  ? 'ws://192.168.1.20:3000/ws'
   : 'wss://your-production-url.com/ws';
 
 export { API_BASE, WS_BASE };
@@ -417,8 +417,8 @@ TypeError: Network request failed
 **Cause**: Using `localhost` or `127.0.0.1` instead of your computer's LAN IP.
 
 **Fix**: 
-- Run `ipconfig` in PowerShell → find your `IPv4 Address` (e.g., `192.168.1.50`)
-- Use `http://192.168.1.50:3000` in your Expo app
+- Run `ipconfig` in PowerShell → find your `IPv4 Address` (e.g., `192.168.1.20`)
+- Use `http://192.168.1.20:3000` in your Expo app
 - Make sure phone and computer are on the **same WiFi network**
 
 ### 2. DB Connection Failure

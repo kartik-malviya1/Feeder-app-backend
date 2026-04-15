@@ -1,14 +1,32 @@
 import { FastifyInstance } from 'fastify';
 import { rides, AutoRider } from '../db/schema.js';
-import { eq } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 
 export class RideService {
   constructor(private fastify: FastifyInstance) {}
 
+  private toRadians(value: number) {
+    return (value * Math.PI) / 180;
+  }
+
+  private haversineDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number) {
+    const EARTH_RADIUS_KM = 6371;
+    const dLat = this.toRadians(lat2 - lat1);
+    const dLon = this.toRadians(lon2 - lon1);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(this.toRadians(lat1)) *
+      Math.cos(this.toRadians(lat2)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return EARTH_RADIUS_KM * c;
+  }
+
   async createRideRequest(userId: number, rideData: any) {
     const db = this.fastify.db;
     const otp = Math.floor(1000 + Math.random() * 9000); // Generate 4-digit OTP
-
+console.log("before db",rideData.pickupAddress, rideData.dropAddress);
     const [newRide] = await db.insert(rides).values({
       userId,
       pickupLocationLat: rideData.pickupLat,
@@ -16,11 +34,16 @@ export class RideService {
       dropLocationLat: rideData.dropLat,
       dropLocationLng: rideData.dropLng,
       otp,
+       pickupAddress: rideData.pickupAddress,
+  dropAddress: rideData.dropAddress,
+
       status: 'REQUESTED',
       paymentMode: rideData.paymentMode || 'CASH',
       paymentStatus: 'PENDING',
       price: rideData.price || 0,
     });
+
+    
 
     // Notify all online drivers about the new ride request
     this.fastify.conns.broadcastToDrivers({
@@ -29,6 +52,9 @@ export class RideService {
       pickup: { lat: rideData.pickupLat, lng: rideData.pickupLng },
       drop: { lat: rideData.dropLat, lng: rideData.dropLng },
       price: rideData.price,
+      paymentMode: rideData.paymentMode || 'CASH',
+      pickupAddress: rideData.pickupAddress || null,
+      dropAddress: rideData.dropAddress || null,
     });
 
     return newRide.insertId;
@@ -84,8 +110,24 @@ export class RideService {
     return { success: true, otp: existingRide.otp };
   }
 
-  async updateRideStatus(rideId: number, status: 'STARTED' | 'COMPLETED' | 'CANCELLED') {
+  async updateRideStatus(rideId: number, status: 'STARTED' | 'COMPLETED' | 'CANCELLED', otp?: number) {
     const db = this.fastify.db;
+
+    // Fetch ride details
+    const ride = await db.query.rides.findFirst({ where: eq(rides.id, rideId) });
+    if (!ride) {
+      throw new Error('Ride not found');
+    }
+
+    // OTP Validation for starting a ride
+    if (status === 'STARTED') {
+      if (!otp) {
+        throw new Error('OTP is required to start ride');
+      }
+      if (ride.otp !== otp) {
+        throw new Error('Invalid OTP');
+      }
+    }
 
     await db.update(rides)
       .set({
@@ -97,30 +139,101 @@ export class RideService {
 
     // If ride ended, free the driver
     if (status === 'COMPLETED' || status === 'CANCELLED') {
-      const ride = await db.query.rides.findFirst({ where: eq(rides.id, rideId) });
-      if (ride?.autoRiderId) {
+      if (ride.autoRiderId) {
         await db.update(AutoRider)
           .set({ status: 'ONLINE' })
           .where(eq(AutoRider.id, ride.autoRiderId));
       }
+    }
 
-      // Notify user the ride ended
-      if (ride) {
-        const userSocket = this.fastify.conns.getUserSocket(ride.userId);
-        if (userSocket && userSocket.readyState === 1) {
-          userSocket.send(JSON.stringify({
-            event: status === 'COMPLETED' ? 'RIDE_COMPLETED' : 'RIDE_CANCELLED',
-            rideId,
-          }));
-        }
+    // ✅ Notify BOTH user and driver via WebSocket
+    const userSocket = this.fastify.conns.getUserSocket(ride.userId);
+    if (userSocket && userSocket.readyState === 1) {
+      userSocket.send(JSON.stringify({
+        event: `RIDE_${status}`,
+        rideId,
+      }));
+    }
+
+    if (ride.autoRiderId) {
+      const driverSocket = this.fastify.conns.getDriverSocket(ride.autoRiderId);
+      if (driverSocket && driverSocket.readyState === 1) {
+        driverSocket.send(JSON.stringify({
+          event: `RIDE_${status}`,
+          rideId,
+        }));
       }
     }
 
     return { success: true };
   }
 
-  async getRideStatus(rideId: number) {
+  async getActiveRideForDriver(driverId: number) {
     const db = this.fastify.db;
-    return await db.select().from(rides).where(eq(rides.id, rideId)).then(r => r[0]);
+    return await db.query.rides.findFirst({
+      where: and(
+        eq(rides.autoRiderId, driverId),
+        inArray(rides.status, ['ACCEPTED', 'STARTED'])
+      )
+    });
+  }
+
+  async getNearbyRequestedRidesForDriver(
+    driverId: number,
+    options?: { radiusKm?: number; limit?: number },
+  ) {
+    const db = this.fastify.db;
+    const radiusKm = options?.radiusKm ?? 6;
+    const limit = options?.limit ?? 25;
+
+    const driver = await db.query.AutoRider.findFirst({
+      where: eq(AutoRider.id, driverId),
+    });
+
+    if (!driver) {
+      throw new Error('Driver not found');
+    }
+
+    const requestedRides = await db.select().from(rides).where(eq(rides.status, 'REQUESTED'));
+
+    const mapped = requestedRides
+      .map((ride) => {
+        const distanceKm =
+          driver.currentLat != null &&
+          driver.currentLng != null &&
+          ride.pickupLocationLat != null &&
+          ride.pickupLocationLng != null
+            ? this.haversineDistanceKm(
+              driver.currentLat,
+              driver.currentLng,
+              ride.pickupLocationLat,
+              ride.pickupLocationLng,
+            )
+            : null;
+
+        return {
+          rideId: ride.id,
+          pickup: { lat: ride.pickupLocationLat, lng: ride.pickupLocationLng },
+          drop: { lat: ride.dropLocationLat, lng: ride.dropLocationLng },
+          price: ride.price,
+          paymentMode: (ride.paymentMode || 'CASH').toUpperCase(),
+          distanceKm,
+          createdAt: ride.created_at,
+        };
+      })
+      .filter((ride) => ride.pickup.lat != null && ride.pickup.lng != null && ride.drop.lat != null && ride.drop.lng != null);
+
+    const nearby = driver.currentLat != null && driver.currentLng != null
+      ? mapped.filter((ride) => ride.distanceKm != null && ride.distanceKm <= radiusKm)
+      : mapped;
+
+    const sorted = nearby.sort((a, b) => {
+      if (a.distanceKm != null && b.distanceKm != null) {
+        return a.distanceKm - b.distanceKm;
+      }
+      return Number(new Date(b.createdAt)) - Number(new Date(a.createdAt));
+    });
+
+    return sorted.slice(0, limit);
   }
 }

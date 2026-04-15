@@ -1,3 +1,6 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import Fastify from 'fastify';
 import { serializerCompiler, validatorCompiler, ZodTypeProvider } from 'fastify-type-provider-zod';
 import cors from '@fastify/cors';
@@ -13,6 +16,9 @@ import authRoutes from './routes/auth.routes.js';
 import rideRoutes from './routes/ride.routes.js';
 import locationRoutes from './routes/location.routes.js';
 import wsRoutes from './routes/ws.routes.js';
+import paymentRoutes from './routes/payment.routes.js';
+
+import driverRoutes from './routes/driver.routes.js';
 
 export const buildApp = async () => {
   const fastify = Fastify({
@@ -43,7 +49,42 @@ export const buildApp = async () => {
   await fastify.register(authRoutes, { prefix: '/auth' });
   await fastify.register(rideRoutes, { prefix: '/rides' });
   await fastify.register(locationRoutes, { prefix: '/location' });
+  await fastify.register(paymentRoutes, { prefix: '/payments' });
+  await fastify.register(driverRoutes, { prefix: '/driver' });
   await fastify.register(wsRoutes);
+
+  fastify.get('/payments/return', async (request, reply) => {
+  const { order_id } = request.query as { order_id?: string };
+
+  console.log("✅ Cashfree Return URL Hit → Order ID:", order_id);
+
+  return reply.type('text/html').send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Payment Success</title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <style>
+        body { font-family: system-ui; text-align: center; padding: 60px 20px; }
+        h3 { color: #41BE45; }
+      </style>
+    </head>
+    <body>
+      <h3>Payment Completed Successfully</h3>
+      <p>Redirecting back to app...</p>
+      
+      <script>
+        if (window.ReactNativeWebView) {
+          window.ReactNativeWebView.postMessage(JSON.stringify({
+            type: "PAYMENT_RETURN",
+            orderId: "${order_id || ''}"
+          }));
+        }
+      </script>
+    </body>
+    </html>
+  `);
+});
 
   // ─── Global Error Handler ───
   fastify.setErrorHandler((error: any, request, reply) => {
