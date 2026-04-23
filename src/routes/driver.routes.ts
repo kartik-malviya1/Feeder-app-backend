@@ -11,16 +11,10 @@ export default async function driverRoutes(fastify: FastifyInstance) {
     vehicleNumber: z.string().min(4).max(20).optional(),
     vehicleType: z.string().min(2).max(20).optional(),
     licenseNumber: z.string().min(4).max(20).optional(),
-<<<<<<< HEAD
     photoUrl: z.string().max(255).optional(),
     licensePhotoUrl: z.string().max(255).optional(),
     aadhaarCardPhotoUrl: z.string().max(255).optional(),
-=======
-    photoUrl: z.string().url().max(255).optional(),
-    licensePhotoUrl: z.string().url().max(255).optional(),
-    aadhaarCardPhotoUrl: z.string().url().max(255).optional(),
-    rcPhotoUrl: z.string().url().max(255).optional(),
->>>>>>> 139586a82ebe4934f95d7f00b6c2c74a8c5f9a49
+    rcPhotoUrl: z.string().max(255).optional(),
   });
 
   fastify.addHook('preHandler', fastify.authenticate);
