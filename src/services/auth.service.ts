@@ -128,4 +128,23 @@ export class AuthService {
       user: { id: insertId, name: data.name, role: type },
     };
   }
+
+  async adminLogin(password: string) {
+    const adminPassword = process.env.ADMIN_PASSWORD || 'sawari-admin-2026';
+    
+    if (password !== adminPassword) {
+      throw new Error('Invalid admin password');
+    }
+
+    const token = this.fastify.jwt.sign({
+      id: 0,
+      role: 'admin',
+      name: 'Sawari Admin',
+    });
+
+    return {
+      token,
+      user: { id: 0, name: 'Sawari Admin', role: 'admin' },
+    };
+  }
 }

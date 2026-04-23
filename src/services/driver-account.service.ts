@@ -7,8 +7,13 @@ type DriverAccountProfile = {
   name: string;
   phoneNumber: string;
   vehicleNumber: string | null;
+  vehicleType: string | null;
   licenseNumber: string | null;
   photoUrl: string | null;
+  licensePhotoUrl: string | null;
+  aadhaarCardPhotoUrl: string | null;
+  rcPhotoUrl: string | null;
+  isApproved: boolean;
   status: 'OFFLINE' | 'ONLINE' | 'BUSY';
   rating: number | null;
   createdAt: string;
@@ -30,8 +35,12 @@ export type DriverAccountResponse = {
 type UpdateDriverAccountInput = {
   name?: string;
   vehicleNumber?: string;
+  vehicleType?: string;
   licenseNumber?: string;
   photoUrl?: string;
+  licensePhotoUrl?: string;
+  aadhaarCardPhotoUrl?: string;
+  rcPhotoUrl?: string;
 };
 
 export class DriverAccountService {
@@ -81,8 +90,13 @@ export class DriverAccountService {
         name: driver.name,
         phoneNumber: driver.phoneNumber,
         vehicleNumber: driver.vehicleNumber ?? null,
+        vehicleType: driver.vehicleType ?? null,
         licenseNumber: driver.licenseNumber ?? null,
         photoUrl: driver.photoUrl ?? null,
+        licensePhotoUrl: driver.licensePhotoUrl ?? null,
+        aadhaarCardPhotoUrl: driver.AadhaarCardPhotoUrl ?? null,
+        rcPhotoUrl: driver.rcPhotoUrl ?? null,
+        isApproved: driver.isApproved,
         status: driver.status,
         rating: driver.rating ?? null,
         createdAt: driver.created_at.toISOString(),
@@ -111,12 +125,28 @@ export class DriverAccountService {
       throw new Error('Driver not found');
     }
 
-    const updates: UpdateDriverAccountInput = {};
+    const updates: any = {};
 
     if (input.name !== undefined) updates.name = input.name;
     if (input.vehicleNumber !== undefined) updates.vehicleNumber = input.vehicleNumber;
+    if (input.vehicleType !== undefined) updates.vehicleType = input.vehicleType;
     if (input.licenseNumber !== undefined) updates.licenseNumber = input.licenseNumber;
     if (input.photoUrl !== undefined) updates.photoUrl = input.photoUrl;
+    if (input.licensePhotoUrl !== undefined) updates.licensePhotoUrl = input.licensePhotoUrl;
+    if (input.aadhaarCardPhotoUrl !== undefined) updates.AadhaarCardPhotoUrl = input.aadhaarCardPhotoUrl;
+    if (input.rcPhotoUrl !== undefined) updates.rcPhotoUrl = input.rcPhotoUrl;
+
+    // If any document or identity field is updated, reset approval status
+    if (
+      updates.photoUrl ||
+      updates.licensePhotoUrl ||
+      updates.AadhaarCardPhotoUrl ||
+      updates.rcPhotoUrl ||
+      updates.licenseNumber ||
+      updates.vehicleNumber
+    ) {
+      updates.isApproved = false;
+    }
 
     if (Object.keys(updates).length === 0) {
       throw new Error('No fields provided to update');
@@ -137,8 +167,13 @@ export class DriverAccountService {
       name: updated.name,
       phoneNumber: updated.phoneNumber,
       vehicleNumber: updated.vehicleNumber ?? null,
+      vehicleType: updated.vehicleType ?? null,
       licenseNumber: updated.licenseNumber ?? null,
       photoUrl: updated.photoUrl ?? null,
+      licensePhotoUrl: updated.licensePhotoUrl ?? null,
+      aadhaarCardPhotoUrl: updated.AadhaarCardPhotoUrl ?? null,
+      rcPhotoUrl: updated.rcPhotoUrl ?? null,
+      isApproved: updated.isApproved,
       status: updated.status,
       rating: updated.rating ?? null,
       createdAt: updated.created_at.toISOString(),

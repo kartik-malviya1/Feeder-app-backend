@@ -5,8 +5,8 @@ import fastifyJwt from '@fastify/jwt';
 // Tell TypeScript the shape of our JWT payload
 declare module '@fastify/jwt' {
   interface FastifyJWT {
-    payload: { id: number; role: 'user' | 'driver'; name: string };
-    user: { id: number; role: 'user' | 'driver'; name: string };
+    payload: { id: number; role: 'user' | 'driver' | 'admin'; name: string };
+    user: { id: number; role: 'user' | 'driver' | 'admin'; name: string };
   }
 }
 
