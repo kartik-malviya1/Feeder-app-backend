@@ -12,10 +12,7 @@ type DriverAccountProfile = {
   photoUrl: string | null;
   licensePhotoUrl: string | null;
   aadhaarCardPhotoUrl: string | null;
-<<<<<<< HEAD
-=======
   rcPhotoUrl: string | null;
->>>>>>> 139586a82ebe4934f95d7f00b6c2c74a8c5f9a49
   isApproved: boolean;
   status: 'OFFLINE' | 'ONLINE' | 'BUSY';
   rating: number | null;
@@ -42,14 +39,11 @@ export type UpdateDriverAccountInput = {
   photoUrl?: string;
   licensePhotoUrl?: string;
   aadhaarCardPhotoUrl?: string;
-<<<<<<< HEAD
-=======
   rcPhotoUrl?: string;
->>>>>>> 139586a82ebe4934f95d7f00b6c2c74a8c5f9a49
 };
 
 export class DriverAccountService {
-  constructor(private fastify: FastifyInstance) {}
+  constructor(private fastify: FastifyInstance) { }
 
   async getDriverAccount(driverId: number): Promise<DriverAccountResponse> {
     const db = this.fastify.db;
@@ -100,12 +94,8 @@ export class DriverAccountService {
         photoUrl: driver.photoUrl ?? null,
         licensePhotoUrl: driver.licensePhotoUrl ?? null,
         aadhaarCardPhotoUrl: driver.AadhaarCardPhotoUrl ?? null,
-<<<<<<< HEAD
-        isApproved: !!driver.isApproved,
-=======
         rcPhotoUrl: driver.rcPhotoUrl ?? null,
         isApproved: driver.isApproved,
->>>>>>> 139586a82ebe4934f95d7f00b6c2c74a8c5f9a49
         status: driver.status,
         rating: driver.rating ?? null,
         createdAt: driver.created_at.toISOString(),
@@ -141,10 +131,6 @@ export class DriverAccountService {
     if (input.vehicleType !== undefined) updates.vehicleType = input.vehicleType;
     if (input.licenseNumber !== undefined) updates.licenseNumber = input.licenseNumber;
     if (input.photoUrl !== undefined) updates.photoUrl = input.photoUrl;
-<<<<<<< HEAD
-    if (input.licensePhotoUrl !== undefined) (updates as any).licensePhotoUrl = input.licensePhotoUrl;
-    if (input.aadhaarCardPhotoUrl !== undefined) (updates as any).AadhaarCardPhotoUrl = input.aadhaarCardPhotoUrl;
-=======
     if (input.licensePhotoUrl !== undefined) updates.licensePhotoUrl = input.licensePhotoUrl;
     if (input.aadhaarCardPhotoUrl !== undefined) updates.AadhaarCardPhotoUrl = input.aadhaarCardPhotoUrl;
     if (input.rcPhotoUrl !== undefined) updates.rcPhotoUrl = input.rcPhotoUrl;
@@ -160,7 +146,6 @@ export class DriverAccountService {
     ) {
       updates.isApproved = false;
     }
->>>>>>> 139586a82ebe4934f95d7f00b6c2c74a8c5f9a49
 
     if (Object.keys(updates).length === 0) {
       throw new Error('No fields provided to update');
@@ -186,12 +171,8 @@ export class DriverAccountService {
       photoUrl: updated.photoUrl ?? null,
       licensePhotoUrl: updated.licensePhotoUrl ?? null,
       aadhaarCardPhotoUrl: updated.AadhaarCardPhotoUrl ?? null,
-<<<<<<< HEAD
-      isApproved: !!updated.isApproved,
-=======
       rcPhotoUrl: updated.rcPhotoUrl ?? null,
       isApproved: updated.isApproved,
->>>>>>> 139586a82ebe4934f95d7f00b6c2c74a8c5f9a49
       status: updated.status,
       rating: updated.rating ?? null,
       createdAt: updated.created_at.toISOString(),
