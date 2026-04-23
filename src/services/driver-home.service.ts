@@ -20,7 +20,7 @@ type DriverHomeResponse = {
 };
 
 export class DriverHomeService {
-  constructor(private fastify: FastifyInstance) {}
+  constructor(private fastify: FastifyInstance) { }
 
   async getHomeData(driverId: number): Promise<DriverHomeResponse> {
     const db = this.fastify.db;
@@ -76,11 +76,7 @@ export class DriverHomeService {
         name: driver.name,
         status: driver.status,
         rating: driver.rating ?? null,
-<<<<<<< HEAD
-        isApproved: !!driver.isApproved,
-=======
         isApproved: driver.isApproved,
->>>>>>> 139586a82ebe4934f95d7f00b6c2c74a8c5f9a49
       },
       stats: {
         todayTrips: Number(todayStats?.tripCount ?? 0),

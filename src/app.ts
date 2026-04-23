@@ -31,7 +31,10 @@ export const buildApp = async () => {
   fastify.setSerializerCompiler(serializerCompiler);
 
   // Register Plugins
-  await fastify.register(cors, { origin: true }); // allow all origins (Expo needs this)
+  await fastify.register(cors, { 
+    origin: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
+  }); // allow all origins (Expo needs this)
   await fastify.register(drizzlePlugin);
   await fastify.register(jwtPlugin);
   await fastify.register(websocketPlugin);

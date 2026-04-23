@@ -48,6 +48,15 @@ export const AutoRider = mysqlTable('auto_rider', {
   currentLng: float(),
 });
 
+// ================= ADMINS =================
+export const adminsTable = mysqlTable('admins_table', {
+  id: serial().primaryKey(),
+  name: varchar({ length: 255 }).notNull(),
+  email: varchar({ length: 255 }).notNull().unique(),
+  password: varchar({ length: 255 }).notNull(),
+  created_at: timestamp("created_at").defaultNow().notNull(),
+});
+
 // ================= RIDES =================
 export const rides = mysqlTable('rides', {
   id: serial().primaryKey(),

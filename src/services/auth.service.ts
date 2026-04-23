@@ -108,6 +108,7 @@ export class AuthService {
         vehicleNumber: data.vehicleNumber,
         licenseNumber: data.licenseNumber,
         licensePhotoUrl: data.licensePhotoUrl,
+        rcPhotoUrl: data.rcPhotoUrl,
         AadhaarCardPhotoUrl: data.AadhaarCardPhotoUrl,
         photoUrl: data.photoUrl,
         status: 'OFFLINE',

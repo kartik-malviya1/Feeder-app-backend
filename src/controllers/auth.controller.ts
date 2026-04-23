@@ -24,6 +24,7 @@ export const signupSchema = z.object({
   licensePhotoUrl: z.string().optional(),
   AadhaarCardPhotoUrl: z.string().optional(),
   photoUrl: z.string().optional(),
+  rcPhotoUrl: z.string().optional(),
 });
 
 export class AuthController {
