@@ -111,6 +111,7 @@ export class AuthService {
         AadhaarCardPhotoUrl: data.AadhaarCardPhotoUrl,
         photoUrl: data.photoUrl,
         status: 'OFFLINE',
+        isApproved: false,
       });
     }
 

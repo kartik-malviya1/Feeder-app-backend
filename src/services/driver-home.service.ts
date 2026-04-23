@@ -8,6 +8,7 @@ type DriverHomeResponse = {
     name: string;
     status: 'OFFLINE' | 'ONLINE' | 'BUSY';
     rating: number | null;
+    isApproved: boolean;
   };
   stats: {
     todayTrips: number;
@@ -75,6 +76,7 @@ export class DriverHomeService {
         name: driver.name,
         status: driver.status,
         rating: driver.rating ?? null,
+        isApproved: !!driver.isApproved,
       },
       stats: {
         todayTrips: Number(todayStats?.tripCount ?? 0),

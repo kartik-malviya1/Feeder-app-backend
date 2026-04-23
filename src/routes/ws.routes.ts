@@ -20,6 +20,20 @@ export default async function wsRoutes(fastify: FastifyInstance) {
             if (data.role === 'user') {
               fastify.conns.registerUser(data.id, connection);
             } else if (data.role === 'driver') {
+              // Check if driver is approved
+              const driver = await fastify.db.query.AutoRider.findFirst({
+                where: eq(AutoRider.id, data.id),
+              });
+
+              if (!driver || !driver.isApproved) {
+                fastify.log.warn(`Driver ${data.id} attempted to go ONLINE but is not approved`);
+                connection.send(JSON.stringify({ 
+                  type: 'ERROR', 
+                  message: 'Account not approved. Please upload documents and wait for admin approval.' 
+                }));
+                return;
+              }
+
               fastify.conns.registerDriver(data.id, connection);
               // Mark driver as ONLINE in DB
               await fastify.db.update(AutoRider)
@@ -104,7 +118,7 @@ export default async function wsRoutes(fastify: FastifyInstance) {
             .where(eq(AutoRider.id, registeredId));
           fastify.log.info(`Driver ${registeredId} is now OFFLINE`);
         } catch (err) {
-          fastify.log.error(`Failed to set driver ${registeredId} OFFLINE:`, err);
+          fastify.log.error(err, `Failed to set driver ${registeredId} OFFLINE:`);
         }
       }
     });

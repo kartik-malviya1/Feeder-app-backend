@@ -9,6 +9,9 @@ type DriverAccountProfile = {
   vehicleNumber: string | null;
   licenseNumber: string | null;
   photoUrl: string | null;
+  licensePhotoUrl: string | null;
+  aadhaarCardPhotoUrl: string | null;
+  isApproved: boolean;
   status: 'OFFLINE' | 'ONLINE' | 'BUSY';
   rating: number | null;
   createdAt: string;
@@ -26,12 +29,13 @@ export type DriverAccountResponse = {
   profile: DriverAccountProfile;
   stats: DriverAccountStats;
 };
-
-type UpdateDriverAccountInput = {
+export type UpdateDriverAccountInput = {
   name?: string;
   vehicleNumber?: string;
   licenseNumber?: string;
   photoUrl?: string;
+  licensePhotoUrl?: string;
+  aadhaarCardPhotoUrl?: string;
 };
 
 export class DriverAccountService {
@@ -83,6 +87,9 @@ export class DriverAccountService {
         vehicleNumber: driver.vehicleNumber ?? null,
         licenseNumber: driver.licenseNumber ?? null,
         photoUrl: driver.photoUrl ?? null,
+        licensePhotoUrl: driver.licensePhotoUrl ?? null,
+        aadhaarCardPhotoUrl: driver.AadhaarCardPhotoUrl ?? null,
+        isApproved: !!driver.isApproved,
         status: driver.status,
         rating: driver.rating ?? null,
         createdAt: driver.created_at.toISOString(),
@@ -117,6 +124,8 @@ export class DriverAccountService {
     if (input.vehicleNumber !== undefined) updates.vehicleNumber = input.vehicleNumber;
     if (input.licenseNumber !== undefined) updates.licenseNumber = input.licenseNumber;
     if (input.photoUrl !== undefined) updates.photoUrl = input.photoUrl;
+    if (input.licensePhotoUrl !== undefined) (updates as any).licensePhotoUrl = input.licensePhotoUrl;
+    if (input.aadhaarCardPhotoUrl !== undefined) (updates as any).AadhaarCardPhotoUrl = input.aadhaarCardPhotoUrl;
 
     if (Object.keys(updates).length === 0) {
       throw new Error('No fields provided to update');
@@ -139,6 +148,9 @@ export class DriverAccountService {
       vehicleNumber: updated.vehicleNumber ?? null,
       licenseNumber: updated.licenseNumber ?? null,
       photoUrl: updated.photoUrl ?? null,
+      licensePhotoUrl: updated.licensePhotoUrl ?? null,
+      aadhaarCardPhotoUrl: updated.AadhaarCardPhotoUrl ?? null,
+      isApproved: !!updated.isApproved,
       status: updated.status,
       rating: updated.rating ?? null,
       createdAt: updated.created_at.toISOString(),

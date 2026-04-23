@@ -1,4 +1,4 @@
-import { bigint, float, int, mysqlEnum, mysqlTable, serial, timestamp, varchar } from 'drizzle-orm/mysql-core';
+import { bigint, boolean, float, int, mysqlEnum, mysqlTable, serial, timestamp, varchar } from 'drizzle-orm/mysql-core';
 
 // ================= USERS =================
 export const usersTable = mysqlTable('users_table', {
@@ -40,6 +40,7 @@ export const AutoRider = mysqlTable('auto_rider', {
   lastLogin: timestamp("lastlogin"),
   status: driverStatusEnum.notNull(),
   rating: float(),
+  isApproved: boolean().default(false).notNull(),
   created_at: timestamp("created_at").defaultNow().notNull(),
   currentLat: float(),
   currentLng: float(),

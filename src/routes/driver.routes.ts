@@ -10,7 +10,9 @@ export default async function driverRoutes(fastify: FastifyInstance) {
     name: z.string().min(2).max(255).optional(),
     vehicleNumber: z.string().min(4).max(20).optional(),
     licenseNumber: z.string().min(4).max(20).optional(),
-    photoUrl: z.url().max(255).optional(),
+    photoUrl: z.string().max(255).optional(),
+    licensePhotoUrl: z.string().max(255).optional(),
+    aadhaarCardPhotoUrl: z.string().max(255).optional(),
   });
 
   fastify.addHook('preHandler', fastify.authenticate);
