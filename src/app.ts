@@ -17,6 +17,7 @@ import rideRoutes from './routes/ride.routes.js';
 import locationRoutes from './routes/location.routes.js';
 import wsRoutes from './routes/ws.routes.js';
 import paymentRoutes from './routes/payment.routes.js';
+import adminRoutes from './routes/admin.routes.js';
 
 import driverRoutes from './routes/driver.routes.js';
 
@@ -51,6 +52,7 @@ export const buildApp = async () => {
   await fastify.register(locationRoutes, { prefix: '/location' });
   await fastify.register(paymentRoutes, { prefix: '/payments' });
   await fastify.register(driverRoutes, { prefix: '/driver' });
+  await fastify.register(adminRoutes, { prefix: '/admin' });
   await fastify.register(wsRoutes);
 
   fastify.get('/payments/return', async (request, reply) => {
