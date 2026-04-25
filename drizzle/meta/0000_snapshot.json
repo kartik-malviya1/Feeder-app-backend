@@ -1,7 +1,7 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "b51d711f-5ee7-4ec2-9d34-3ec1c9aed95f",
+  "id": "d6e58908-94fd-4411-9613-36ed9b18cd1b",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "auto_rider": {
@@ -35,6 +35,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "vehicleType": {
+          "name": "vehicleType",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "licenseNumber": {
           "name": "licenseNumber",
           "type": "varchar(20)",
@@ -51,6 +58,13 @@
         },
         "AadhaarCardPhotoUrl": {
           "name": "AadhaarCardPhotoUrl",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "rcPhotoUrl": {
+          "name": "rcPhotoUrl",
           "type": "varchar(255)",
           "primaryKey": false,
           "notNull": false,
@@ -83,6 +97,14 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "isApproved": {
+          "name": "isApproved",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
         },
         "created_at": {
           "name": "created_at",
@@ -118,6 +140,66 @@
         }
       },
       "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "admins_table": {
+      "name": "admins_table",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "email": {
+          "name": "email",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "password": {
+          "name": "password",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(now())"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "admins_table_id": {
+          "name": "admins_table_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "admins_table_email_unique": {
+          "name": "admins_table_email_unique",
+          "columns": [
+            "email"
+          ]
+        }
+      },
       "checkConstraint": {}
     },
     "rides": {
@@ -168,6 +250,20 @@
         "dropLocationLng": {
           "name": "dropLocationLng",
           "type": "float",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "pickupAddress": {
+          "name": "pickupAddress",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "dropAddress": {
+          "name": "dropAddress",
+          "type": "varchar(255)",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
@@ -245,6 +341,13 @@
         "duration": {
           "name": "duration",
           "type": "int",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "cf_order_id": {
+          "name": "cf_order_id",
+          "type": "varchar(255)",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false

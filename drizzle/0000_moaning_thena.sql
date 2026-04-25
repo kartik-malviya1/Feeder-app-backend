@@ -3,17 +3,30 @@ CREATE TABLE `auto_rider` (
 	`name` varchar(255) NOT NULL,
 	`phoneNumber` varchar(20) NOT NULL,
 	`vehicleNumber` varchar(20),
+	`vehicleType` varchar(20),
 	`licenseNumber` varchar(20),
 	`licensePhotoUrl` varchar(255),
 	`AadhaarCardPhotoUrl` varchar(255),
+	`rcPhotoUrl` varchar(255),
 	`photoUrl` varchar(255),
 	`lastlogin` timestamp,
 	`driver_status` enum('OFFLINE','ONLINE','BUSY') NOT NULL,
 	`rating` float,
+	`isApproved` boolean NOT NULL DEFAULT false,
 	`created_at` timestamp NOT NULL DEFAULT (now()),
 	`currentLat` float,
 	`currentLng` float,
 	CONSTRAINT `auto_rider_id` PRIMARY KEY(`id`)
+);
+--> statement-breakpoint
+CREATE TABLE `admins_table` (
+	`id` serial AUTO_INCREMENT NOT NULL,
+	`name` varchar(255) NOT NULL,
+	`email` varchar(255) NOT NULL,
+	`password` varchar(255) NOT NULL,
+	`created_at` timestamp NOT NULL DEFAULT (now()),
+	CONSTRAINT `admins_table_id` PRIMARY KEY(`id`),
+	CONSTRAINT `admins_table_email_unique` UNIQUE(`email`)
 );
 --> statement-breakpoint
 CREATE TABLE `rides` (
@@ -24,6 +37,8 @@ CREATE TABLE `rides` (
 	`pickupLocationLng` float NOT NULL,
 	`dropLocationLat` float,
 	`dropLocationLng` float,
+	`pickupAddress` varchar(255),
+	`dropAddress` varchar(255),
 	`otp` int NOT NULL,
 	`ride_status` enum('REQUESTED','ACCEPTED','STARTED','COMPLETED','CANCELLED') NOT NULL,
 	`paymentMode` varchar(20) NOT NULL,
@@ -35,6 +50,7 @@ CREATE TABLE `rides` (
 	`completed_at` timestamp,
 	`distance` float,
 	`duration` int,
+	`cf_order_id` varchar(255),
 	`created_at` timestamp NOT NULL DEFAULT (now()),
 	CONSTRAINT `rides_id` PRIMARY KEY(`id`)
 );

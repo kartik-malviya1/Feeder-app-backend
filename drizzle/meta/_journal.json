@@ -5,22 +5,8 @@
     {
       "idx": 0,
       "version": "5",
-      "when": 1776228934749,
-      "tag": "0000_condemned_namora",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "5",
-      "when": 1776860542175,
-      "tag": "0001_regular_pestilence",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "5",
-      "when": 1776931649063,
-      "tag": "0002_careless_iron_man",
+      "when": 1777123240206,
+      "tag": "0000_moaning_thena",
       "breakpoints": true
     }
   ]

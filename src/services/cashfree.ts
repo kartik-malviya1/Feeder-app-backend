@@ -42,7 +42,7 @@ export function getPublicBaseUrl(request?: FastifyRequest): string {
  
 
   if (!request) {
-    return "http://192.168.1.2:3000";
+    return "192.168.1.17:8000";
   }
 
   const proto =
@@ -53,7 +53,7 @@ export function getPublicBaseUrl(request?: FastifyRequest): string {
   const host =
     request.headers["x-forwarded-host"] ||
     request.headers.host ||
-    "192.168.1.2:3000";
+    "192.168.1.17:8000";
 
   return `${proto}://${host}`.replace(/\/+$/, "");
 }
