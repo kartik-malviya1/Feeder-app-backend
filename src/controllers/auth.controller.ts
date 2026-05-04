@@ -9,8 +9,9 @@ export const sendOtpSchema = z.object({
 
 export const verifyOtpSchema = z.object({
   phoneNumber: z.string().min(10),
-  otp: z.string().length(4),
+  otp: z.string().min(4).max(6),
   type: z.enum(['user', 'driver']),
+  verificationId: z.string(),
 });
 
 export const signupSchema = z.object({
@@ -41,6 +42,7 @@ export class AuthController {
       return reply.send({
         message: 'OTP sent successfully',
         exists: result.exists,
+        verificationId: result.verificationId,
       });
     } catch (error: any) {
       return reply.code(400).send({ error: error.message });
@@ -48,9 +50,9 @@ export class AuthController {
   }
 
   async verifyOtp(request: FastifyRequest, reply: FastifyReply) {
-    const { phoneNumber, otp, type } = verifyOtpSchema.parse(request.body);
+    const { phoneNumber, otp, type, verificationId } = verifyOtpSchema.parse(request.body);
     try {
-      const result = await this.authService.verifyOtp(type, phoneNumber, otp);
+      const result = await this.authService.verifyOtp(type, phoneNumber, otp, verificationId);
       return reply.send(result);
     } catch (error: any) {
       return reply.code(400).send({ error: error.message });

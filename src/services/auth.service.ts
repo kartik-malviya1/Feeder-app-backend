@@ -1,15 +1,13 @@
 import { FastifyInstance } from 'fastify';
 import { usersTable, AutoRider } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
-
-// In-memory OTP store (MVP only — replace with Redis/Twilio in production)
-const otpStore = new Map<string, { otp: string; exists: boolean; expiresAt: number }>();
+import { sendOTPWithMessageCentral, verifyOTPWithMessageCentral } from './message-central.js';
 
 export class AuthService {
   constructor(private fastify: FastifyInstance) {}
 
   /**
-   * Check if phone exists, generate OTP, store in memory.
+   * Check if phone exists, send OTP via MessageCentral.
    */
   async sendOtp(type: 'user' | 'driver', phoneNumber: string) {
     const db = this.fastify.db;
@@ -21,55 +19,31 @@ export class AuthService {
     );
     const exists = result.length > 0;
 
-    // Generate 4-digit OTP
-    const otp = Math.floor(1000 + Math.random() * 9000).toString();
+    // Send OTP via MessageCentral
+    const verificationId = await sendOTPWithMessageCentral(phoneNumber);
 
-    // Store with 5-minute expiry
-    otpStore.set(`${type}:${phoneNumber}`, {
-      otp,
-      exists,
-      expiresAt: Date.now() + 5 * 60 * 1000,
-    });
+    this.fastify.log.info(`📱 OTP sent to ${phoneNumber}, verificationId: ${verificationId}`);
 
-    // Log to console (MVP — replace with SMS service in production)
-    this.fastify.log.info(`📱 OTP for ${phoneNumber}: ${otp}`);
-
-    return { exists };
+    return { exists, verificationId };
   }
 
   /**
-   * Verify OTP. If user exists → return JWT. If not → return verified flag.
+   * Verify OTP via MessageCentral. If user exists → return JWT. If not → return verified flag.
    */
-  async verifyOtp(type: 'user' | 'driver', phoneNumber: string, otp: string) {
-    const key = `${type}:${phoneNumber}`;
-    const stored = otpStore.get(key);
+  async verifyOtp(type: 'user' | 'driver', phoneNumber: string, otp: string, verificationId: string) {
+    // Verify OTP via MessageCentral
+    await verifyOTPWithMessageCentral(verificationId, otp, phoneNumber);
 
-    if (!stored) {
-      throw new Error('OTP not found. Please request a new one.');
-    }
+    const db = this.fastify.db;
+    const table = type === 'user' ? usersTable : AutoRider;
 
-    if (Date.now() > stored.expiresAt) {
-      otpStore.delete(key);
-      throw new Error('OTP expired. Please request a new one.');
-    }
+    const result = await db.select().from(table).where(
+      eq(table.phoneNumber, phoneNumber)
+    );
+    const account = result[0];
 
-    if (stored.otp !== otp) {
-      throw new Error('Invalid OTP.');
-    }
-
-    // OTP is valid — clean up
-    otpStore.delete(key);
-
-    if (stored.exists) {
+    if (account) {
       // User exists → generate JWT and return it
-      const db = this.fastify.db;
-      const table = type === 'user' ? usersTable : AutoRider;
-
-      const result = await db.select().from(table).where(
-        eq(table.phoneNumber, phoneNumber)
-      );
-      const account = result[0];
-
       const token = this.fastify.jwt.sign({
         id: account.id,
         role: type,
