@@ -72,7 +72,7 @@ export async function sendOTPWithMessageCentral(phone: string) {
           customerId: MESSAGECENTRAL_CUSTOMER_ID,
           mobileNumber: normalizedPhone,
           flowType: 'SMS',
-          otpLength: 6,
+          otpLength: 4,
         },
         headers: {
           authToken,
