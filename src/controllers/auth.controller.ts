@@ -11,7 +11,7 @@ export const verifyOtpSchema = z.object({
   phoneNumber: z.string().min(10),
   otp: z.string().min(4).max(6),
   type: z.enum(['user', 'driver']),
-  verificationId: z.string().optional(),
+  verificationId: z.union([z.string(), z.number()]),
 });
 
 export const signupSchema = z.object({
@@ -45,18 +45,22 @@ export class AuthController {
         verificationId: result.verificationId,
       });
     } catch (error: any) {
-      const message = error instanceof z.ZodError ? error.errors[0].message : error.message;
+      const message = error instanceof z.ZodError ? error.issues[0].message : error.message;
       return reply.code(400).send({ error: message });
     }
   }
 
   async verifyOtp(request: FastifyRequest, reply: FastifyReply) {
     try {
+      console.log('Verify OTP Request Body:', request.body);
       const { phoneNumber, otp, type, verificationId } = verifyOtpSchema.parse(request.body);
       const result = await this.authService.verifyOtp(type, phoneNumber, otp, verificationId);
       return reply.send(result);
     } catch (error: any) {
-      const message = error instanceof z.ZodError ? error.errors[0].message : error.message;
+      console.error('Verify OTP Error:', error);
+      const message = error instanceof z.ZodError 
+        ? `Validation Error: ${error.issues.map((e: any) => `${e.path.join('.')}: ${e.message}`).join(', ')}` 
+        : error.message;
       return reply.code(400).send({ error: message });
     }
   }
@@ -71,7 +75,7 @@ export class AuthController {
         user: result.user,
       });
     } catch (error: any) {
-      const message = error instanceof z.ZodError ? error.errors[0].message : error.message;
+      const message = error instanceof z.ZodError ? error.issues[0].message : error.message;
       return reply.code(400).send({ error: message });
     }
   }

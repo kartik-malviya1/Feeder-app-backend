@@ -31,15 +31,16 @@ export class AuthService {
   /**
    * Verify OTP via MessageCentral. If user exists → return JWT. If not → return verified flag.
    */
-  async verifyOtp(type: 'user' | 'driver', phoneNumber: string, otp: string, verificationId?: string) {
+  async verifyOtp(type: 'user' | 'driver', phoneNumber: string, otp: string, verificationId?: string | number) {
     if (!verificationId) {
       throw new Error('verificationId is required. Please request a new OTP.');
     }
 
     const normalizedPhone = normalizeIndianPhone(phoneNumber);
+    const vId = String(verificationId);
 
     // Verify OTP via MessageCentral
-    await verifyOTPWithMessageCentral(verificationId, otp, normalizedPhone);
+    await verifyOTPWithMessageCentral(vId, otp, normalizedPhone);
 
     const db = this.fastify.db;
     const table = type === 'user' ? usersTable : AutoRider;
