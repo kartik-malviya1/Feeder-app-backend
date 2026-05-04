@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { usersTable, AutoRider } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
-import { sendOTPWithMessageCentral, verifyOTPWithMessageCentral } from './message-central.js';
+import { sendOTPWithMessageCentral, verifyOTPWithMessageCentral, normalizeIndianPhone } from './message-central.js';
 
 export class AuthService {
   constructor(private fastify: FastifyInstance) {}
@@ -12,17 +12,18 @@ export class AuthService {
   async sendOtp(type: 'user' | 'driver', phoneNumber: string) {
     const db = this.fastify.db;
     const table = type === 'user' ? usersTable : AutoRider;
+    const normalizedPhone = normalizeIndianPhone(phoneNumber);
 
     // Check if phone number already exists
     const result = await db.select().from(table).where(
-      eq(table.phoneNumber, phoneNumber)
+      eq(table.phoneNumber, normalizedPhone)
     );
     const exists = result.length > 0;
 
     // Send OTP via MessageCentral
-    const verificationId = await sendOTPWithMessageCentral(phoneNumber);
+    const verificationId = await sendOTPWithMessageCentral(normalizedPhone);
 
-    this.fastify.log.info(`📱 OTP sent to ${phoneNumber}, verificationId: ${verificationId}`);
+    this.fastify.log.info(`📱 OTP sent to ${normalizedPhone}, verificationId: ${verificationId}`);
 
     return { exists, verificationId };
   }
@@ -30,15 +31,21 @@ export class AuthService {
   /**
    * Verify OTP via MessageCentral. If user exists → return JWT. If not → return verified flag.
    */
-  async verifyOtp(type: 'user' | 'driver', phoneNumber: string, otp: string, verificationId: string) {
+  async verifyOtp(type: 'user' | 'driver', phoneNumber: string, otp: string, verificationId?: string) {
+    if (!verificationId) {
+      throw new Error('verificationId is required. Please request a new OTP.');
+    }
+
+    const normalizedPhone = normalizeIndianPhone(phoneNumber);
+
     // Verify OTP via MessageCentral
-    await verifyOTPWithMessageCentral(verificationId, otp, phoneNumber);
+    await verifyOTPWithMessageCentral(verificationId, otp, normalizedPhone);
 
     const db = this.fastify.db;
     const table = type === 'user' ? usersTable : AutoRider;
 
     const result = await db.select().from(table).where(
-      eq(table.phoneNumber, phoneNumber)
+      eq(table.phoneNumber, normalizedPhone)
     );
     const account = result[0];
 
@@ -67,18 +74,19 @@ export class AuthService {
    */
   async signup(type: 'user' | 'driver', data: any) {
     const db = this.fastify.db;
+    const normalizedPhone = normalizeIndianPhone(data.phoneNumber);
 
     let insertResult;
     if (type === 'user') {
       insertResult = await db.insert(usersTable).values({
         name: data.name,
         email: data.email || null,
-        phoneNumber: data.phoneNumber,
+        phoneNumber: normalizedPhone,
       });
     } else {
       insertResult = await db.insert(AutoRider).values({
         name: data.name,
-        phoneNumber: data.phoneNumber,
+        phoneNumber: normalizedPhone,
         vehicleNumber: data.vehicleNumber,
         licenseNumber: data.licenseNumber,
         licensePhotoUrl: data.licensePhotoUrl,
